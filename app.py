@@ -18,9 +18,10 @@ game_state = {
 
 def evaluate_guess(secret, guess):
     """Evaluate the guess and return (correct_digits, correct_positions)."""
-    correct_positions = 0
-    correct_digits = 0
+    correct_positions = 0  # Number of digits that are correct and in the correct position
+    correct_digits = 0  # Number of digits that are correct (any position)
 
+    # Convert to lists for easier comparison
     secret_digits = list(secret)
     guess_digits = list(guess)
 
@@ -30,18 +31,11 @@ def evaluate_guess(secret, guess):
             correct_positions += 1
 
     # Step 2: Check for correct digits (any position)
+    # Count total matching digits, including those in correct positions
     secret_copy = secret_digits.copy()
     guess_copy = guess_digits.copy()
-
-    for i in range(4):
-        if secret_copy[i] == guess_copy[i]:
-            secret_copy[i] = None
-            guess_copy[i] = None
-
-    for i in range(4):
-        if guess_copy[i] is not None and guess_copy[i] in secret_copy:
-            correct_digits += 1
-            secret_copy[secret_copy.index(guess_copy[i])] = None
+    for digit in set(guess_copy):
+        correct_digits += min(secret_copy.count(digit), guess_copy.count(digit))
 
     return correct_digits, correct_positions
 
