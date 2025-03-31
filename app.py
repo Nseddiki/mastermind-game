@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, redirect
+from flask import Flask, request, render_template_string, jsonify
 import random
 
 app = Flask(__name__)
@@ -14,7 +14,7 @@ game_state = {
     "winner": None,
     "message": "Player 1: Enter your secret 4-digit number (no repeating digits).",
     "setup_phase": True,
-    "timer": 30  # Timer for each turn (in seconds)
+    "timer": 30
 }
 
 def evaluate_guess(secret, guess):
@@ -87,7 +87,7 @@ GAME_PAGE = """
             width: 90%;
             max-width: 600px;
             margin: 20px auto;
-            animation: fadeIn 1.5s ease-in-out;
+            animation: fadeIn 0.5s ease-in-out;
             overflow-y: auto;
         }
         @keyframes fadeIn {
@@ -119,7 +119,7 @@ GAME_PAGE = """
             border: 2px solid #7fffd4;
             border-radius: 8px;
             outline: none;
-            transition: border-color 0.5s, box-shadow 0.5s;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
         input[type="text"]:focus {
             border-color: #00c4cc;
@@ -133,14 +133,14 @@ GAME_PAGE = """
             border-radius: 8px;
             cursor: pointer;
             font-size: 1.1em;
-            transition: transform 0.5s, box-shadow 0.5s;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
         button:hover {
             transform: scale(1.05);
             box-shadow: 0 0 15px rgba(0, 196, 204, 0.5);
         }
         button:active {
-            animation: bounce 0.5s;
+            animation: bounce 0.2s;
         }
         @keyframes bounce {
             0% { transform: scale(1); }
@@ -152,7 +152,7 @@ GAME_PAGE = """
             font-weight: 600;
             font-size: 1.3em;
             color: #00c4cc;
-            animation: slideIn 1s ease-in-out;
+            animation: slideIn 0.3s ease-in-out;
         }
         @keyframes slideIn {
             from { opacity: 0; transform: translateX(-20px); }
@@ -165,7 +165,7 @@ GAME_PAGE = """
             padding: 15px;
             border-radius: 10px;
             margin: 20px 0;
-            animation: pulse 2s infinite;
+            animation: pulse 1s infinite;
         }
         @keyframes pulse {
             0% { transform: scale(1); }
@@ -191,7 +191,7 @@ GAME_PAGE = """
             color: white;
         }
         tr {
-            animation: zoomIn 0.8s ease-in-out;
+            animation: zoomIn 0.3s ease-in-out;
         }
         @keyframes zoomIn {
             from { opacity: 0; transform: scale(0.9); }
@@ -199,13 +199,13 @@ GAME_PAGE = """
         }
         tr:hover {
             background-color: rgba(0, 196, 204, 0.1);
-            transition: background-color 0.5s;
+            transition: background-color 0.3s;
         }
         .player-turn {
             font-size: 1.2em;
             color: #7fffd4;
             margin: 10px 0;
-            animation: slideIn 1s ease-in-out;
+            animation: slideIn 0.3s ease-in-out;
         }
         .restart {
             background: linear-gradient(45deg, #ff4500, #ff8c00);
@@ -221,7 +221,7 @@ GAME_PAGE = """
         }
         .timer.warning {
             color: #ff4500;
-            animation: shake 0.5s infinite;
+            animation: shake 0.3s infinite;
         }
         @keyframes shake {
             0% { transform: translateX(0); }
@@ -230,98 +230,82 @@ GAME_PAGE = """
             75% { transform: translateX(-5px); }
             100% { transform: translateX(0); }
         }
-        .audio-control {
+        .loading {
+            display: none;
+            font-size: 1.2em;
+            color: #00c4cc;
             margin: 10px 0;
+            animation: spin 1s linear infinite;
         }
-        .audio-control button {
-            background: linear-gradient(45deg, #ff4500, #ff8c00);
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading::before {
+            content: '⏳ ';
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Mastermind - Two Players</h1>
-        <form method="POST" action="/restart" style="display: inline;">
-            <button type="submit" class="restart">Restart Game</button>
-        </form>
-        <div class="audio-control">
-            <button onclick="toggleAudio()">Toggle Music</button>
+        <button class="restart" onclick="restartGame()">Restart Game</button>
+        <div id="loading" class="loading">Loading...</div>
+        <div id="gameContent">
+            <div id="setupPhase" style="display: {{ 'block' if setup_phase else 'none' }}">
+                <p id="message">{{ message }}</p>
+                <form id="setSecretForm" onsubmit="setSecret(event)">
+                    <input type="text" name="secret" maxlength="4" placeholder="Enter a 4-digit number" required>
+                    <button type="submit">Submit Secret Number</button>
+                </form>
+            </div>
+            <div id="guessPhase" style="display: {{ 'none' if setup_phase else 'block' }}">
+                <p class="player-turn" id="playerTurn">Player {{ current_player }}'s Turn</p>
+                <p>Guess your opponent's 4-digit number!</p>
+                <p class="timer" id="timer">Time Left: {{ timer }}s</p>
+                <p class="message" id="message">{{ message }}</p>
+                <div id="winnerMessage" class="winner-message" style="display: {{ 'block' if game_over else 'none' }}">{{ winner }} Wins!</div>
+                <h2>Player 1's Guesses</h2>
+                <table id="player1Guesses">
+                    <tr>
+                        <th>Guess</th>
+                        <th>Correct Digits</th>
+                        <th>Correct Positions</th>
+                    </tr>
+                    {% for guess, correct_digits, correct_positions in player1_guesses %}
+                    <tr>
+                        <td>{{ guess }}</td>
+                        <td>{{ correct_digits }}</td>
+                        <td>{{ correct_positions }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+                <h2>Player 2's Guesses</h2>
+                <table id="player2Guesses">
+                    <tr>
+                        <th>Guess</th>
+                        <th>Correct Digits</th>
+                        <th>Correct Positions</th>
+                    </tr>
+                    {% for guess, correct_digits, correct_positions in player2_guesses %}
+                    <tr>
+                        <td>{{ guess }}</td>
+                        <td>{{ correct_digits }}</td>
+                        <td>{{ correct_positions }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+                <div id="guessForm" style="display: {{ 'block' if not game_over else 'none' }}">
+                    <form id="submitGuessForm" onsubmit="submitGuess(event)">
+                        <input type="text" name="guess" maxlength="4" placeholder="Enter a 4-digit number" required>
+                        <button type="submit">Submit Guess</button>
+                    </form>
+                </div>
+                <div id="playAgain" style="display: {{ 'block' if game_over else 'none' }}">
+                    <button class="restart" onclick="restartGame()">Play Again</button>
+                </div>
+            </div>
         </div>
-        <audio id="backgroundMusic" loop>
-            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
-            Your browser does not support the audio element.
-        </audio>
-        <audio id="winSound">
-            <source src="https://www.myinstants.com/media/sounds/applause.mp3" type="audio/mpeg">
-            Your browser does not support the audio element.
-        </audio>
-        {% if setup_phase %}
-        <p>{{ message }}</p>
-        <form method="POST" action="/set_secret">
-            <input type="text" name="secret" maxlength="4" placeholder="Enter a 4-digit number" required>
-            <button type="submit">Submit Secret Number</button>
-        </form>
-        {% else %}
-        <p class="player-turn">Player {{ current_player }}'s Turn</p>
-        <p>Guess your opponent's 4-digit number!</p>
-        <p class="timer" id="timer">Time Left: {{ timer }}s</p>
-        <p class="message">{{ message }}</p>
-        {% if game_over %}
-        <p class="winner-message">{{ winner }} Wins!</p>
-        <script>
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 }
-            });
-            document.getElementById('winSound').play();
-        </script>
-        {% endif %}
-        <h2>Player 1's Guesses</h2>
-        {% if player1_guesses %}
-        <table>
-            <tr>
-                <th>Guess</th>
-                <th>Correct Digits</th>
-                <th>Correct Positions</th>
-            </tr>
-            {% for guess, correct_digits, correct_positions in player1_guesses %}
-            <tr>
-                <td>{{ guess }}</td>
-                <td>{{ correct_digits }}</td>
-                <td>{{ correct_positions }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        {% endif %}
-        <h2>Player 2's Guesses</h2>
-        {% if player2_guesses %}
-        <table>
-            <tr>
-                <th>Guess</th>
-                <th>Correct Digits</th>
-                <th>Correct Positions</th>
-            </tr>
-            {% for guess, correct_digits, correct_positions in player2_guesses %}
-            <tr>
-                <td>{{ guess }}</td>
-                <td>{{ correct_digits }}</td>
-                <td>{{ correct_positions }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        {% endif %}
-        {% if not game_over %}
-        <form method="POST" action="/guess" id="guessForm">
-            <input type="text" name="guess" maxlength="4" placeholder="Enter a 4-digit number" required>
-            <button type="submit">Submit Guess</button>
-        </form>
-        {% else %}
-        <form method="POST" action="/restart">
-            <button type="submit" class="restart">Play Again</button>
-        </form>
-        {% endif %}
-        {% endif %}
     </div>
     <script>
         let timer = {{ timer }};
@@ -342,36 +326,143 @@ GAME_PAGE = """
                 if (timer <= 0) {
                     clearInterval(timerInterval);
                     alert("Time's up! Switching to the other player.");
-                    document.getElementById('guessForm').submit();
+                    submitGuess(null);
                 }
             }, 1000);
         }
 
-        function toggleAudio() {
-            const audio = document.getElementById('backgroundMusic');
-            if (audio.paused) {
-                audio.play();
-            } else {
-                audio.pause();
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        async function setSecret(event) {
+            event.preventDefault();
+            showLoading();
+            const formData = new FormData(event.target);
+            try {
+                const response = await fetch('/set_secret', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                updateGameState(data);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            } finally {
+                hideLoading();
             }
         }
 
-        {% if not setup_phase and not game_over %}
-        startTimer();
-        {% endif %}
-
-        document.getElementById('guessForm')?.addEventListener('submit', (e) => {
-            const guessInput = document.querySelector('input[name="guess"]');
-            const guess = guessInput.value;
-            const secret = {{ current_player }} === 1 ? "{{ player2_secret }}" : "{{ player1_secret }}";
-            const { correct_digits, correct_positions } = evaluate_guess(secret, guess);
-            if (correct_positions !== 4) {
-                guessInput.classList.add('shake');
-                setTimeout(() => {
-                    guessInput.classList.remove('shake');
-                }, 500);
+        async function submitGuess(event) {
+            if (event) event.preventDefault();
+            showLoading();
+            const formData = new FormData(document.getElementById('submitGuessForm'));
+            try {
+                const response = await fetch('/guess', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                updateGameState(data);
+                const guessInput = document.querySelector('input[name="guess"]');
+                const secret = data.current_player === 1 ? data.player2_secret : data.player1_secret;
+                const { correct_digits, correct_positions } = evaluate_guess(secret, guessInput.value);
+                if (correct_positions !== 4) {
+                    guessInput.classList.add('shake');
+                    setTimeout(() => {
+                        guessInput.classList.remove('shake');
+                    }, 300);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            } finally {
+                hideLoading();
             }
-        });
+        }
+
+        async function restartGame() {
+            showLoading();
+            try {
+                const response = await fetch('/restart', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                updateGameState(data);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function updateGameState(data) {
+            document.getElementById('message').textContent = data.message;
+            document.getElementById('setupPhase').style.display = data.setup_phase ? 'block' : 'none';
+            document.getElementById('guessPhase').style.display = data.setup_phase ? 'none' : 'block';
+            document.getElementById('playerTurn').textContent = `Player ${data.current_player}'s Turn`;
+            document.getElementById('guessForm').style.display = data.game_over ? 'none' : 'block';
+            document.getElementById('playAgain').style.display = data.game_over ? 'block' : 'none';
+            document.getElementById('winnerMessage').style.display = data.game_over ? 'block' : 'none';
+            document.getElementById('winnerMessage').textContent = `${data.winner} Wins!`;
+            if (!data.setup_phase && !data.game_over) {
+                startTimer();
+            } else {
+                clearInterval(timerInterval);
+            }
+
+            // Update Player 1's guesses
+            const player1Table = document.getElementById('player1Guesses');
+            player1Table.innerHTML = `
+                <tr>
+                    <th>Guess</th>
+                    <th>Correct Digits</th>
+                    <th>Correct Positions</th>
+                </tr>
+            `;
+            data.player1_guesses.forEach(guess => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${guess[0]}</td>
+                    <td>${guess[1]}</td>
+                    <td>${guess[2]}</td>
+                `;
+                player1Table.appendChild(row);
+            });
+
+            // Update Player 2's guesses
+            const player2Table = document.getElementById('player2Guesses');
+            player2Table.innerHTML = `
+                <tr>
+                    <th>Guess</th>
+                    <th>Correct Digits</th>
+                    <th>Correct Positions</th>
+                </tr>
+            `;
+            data.player2_guesses.forEach(guess => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${guess[0]}</td>
+                    <td>${guess[1]}</td>
+                    <td>${guess[2]}</td>
+                `;
+                player2Table.appendChild(row);
+            });
+
+            if (data.game_over) {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
 
         function evaluate_guess(secret, guess) {
             let correct_positions = 0;
@@ -393,10 +484,14 @@ GAME_PAGE = """
 
             return { correct_digits, correct_positions };
         }
+
+        {% if not setup_phase and not game_over %}
+        startTimer();
+        {% endif %}
     </script>
     <style>
         .shake {
-            animation: shake 0.5s;
+            animation: shake 0.3s;
         }
     </style>
 </body>
@@ -425,30 +520,29 @@ def set_secret():
 
     if not secret.isdigit() or len(secret) != 4 or len(set(secret)) != 4:
         game_state["message"] = "Invalid number! Please enter a 4-digit number with no repeating digits."
-        return redirect('/')
-
-    if game_state["player1_secret"] is None:
-        game_state["player1_secret"] = secret
-        game_state["message"] = "Player 2: Enter your secret 4-digit number (no repeating digits)."
-        return redirect('/')
     else:
-        game_state["player2_secret"] = secret
-        game_state["setup_phase"] = False
-        game_state["message"] = "Player 1: Guess Player 2's number!"
-        game_state["current_player"] = 1
-        return redirect('/')
+        if game_state["player1_secret"] is None:
+            game_state["player1_secret"] = secret
+            game_state["message"] = "Player 2: Enter your secret 4-digit number (no repeating digits)."
+        else:
+            game_state["player2_secret"] = secret
+            game_state["setup_phase"] = False
+            game_state["message"] = "Player 1: Guess Player 2's number!"
+            game_state["current_player"] = 1
+
+    return jsonify(game_state)
 
 @app.route('/guess', methods=['POST'])
 def guess():
     """Handle the player's guess."""
     if game_state["game_over"] or game_state["setup_phase"]:
-        return redirect('/')
+        return jsonify(game_state)
 
     guess = request.form.get('guess').strip()
 
     if not guess.isdigit() or len(guess) != 4 or len(set(guess)) != 4:
         game_state["message"] = "Invalid guess! Please enter a 4-digit number with no repeating digits."
-        return redirect('/')
+        return jsonify(game_state)
 
     if game_state["current_player"] == 1:
         secret = game_state["player2_secret"]
@@ -473,7 +567,7 @@ def guess():
             game_state["current_player"] = 1
             game_state["message"] = "Player 1: Guess Player 2's number! Try a different number!"
 
-    return redirect('/')
+    return jsonify(game_state)
 
 @app.route('/restart', methods=['POST'])
 def restart():
@@ -487,7 +581,7 @@ def restart():
     game_state["winner"] = None
     game_state["message"] = "Player 1: Enter your secret 4-digit number (no repeating digits)."
     game_state["setup_phase"] = True
-    return redirect('/')
+    return jsonify(game_state)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
