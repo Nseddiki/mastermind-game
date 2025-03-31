@@ -1,0 +1,60 @@
+import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:webview_flutter/webview_flutter.dart';
+
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Mastermind - Two Players',
+      theme: ThemeData(
+        primarySwatch: Colors.cyan,
+        fontFamily: 'Poppins',
+      ),
+      home: GameScreen(),
+    );
+  }
+}
+
+class GameScreen extends StatefulWidget {
+  @override
+  _GameScreenState createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  late IO.Socket socket;
+  late WebViewController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize Socket.IO
+    socket = IO.io('https://your-flask-server.onrender.com', <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
+    });
+    socket.connect();
+
+    // Initialize WebView
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadRequest(Uri.parse('https://your-flask-server.onrender.com'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: WebViewWidget(controller: _controller),
+    );
+  }
+
+  @override
+  void dispose() {
+    socket.disconnect();
+    super.dispose();
+  }
+}
