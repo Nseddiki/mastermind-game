@@ -5,15 +5,16 @@ app = Flask(__name__)
 
 # Initialize game state
 game_state = {
-    "player1_secret": None,  # Player 1's secret number
-    "player2_secret": None,  # Player 2's secret number
-    "player1_guesses": [],  # Player 1's guesses
-    "player2_guesses": [],  # Player 2's guesses
-    "current_player": 1,  # 1 for Player 1, 2 for Player 2
+    "player1_secret": None,
+    "player2_secret": None,
+    "player1_guesses": [],
+    "player2_guesses": [],
+    "current_player": 1,
     "game_over": False,
     "winner": None,
     "message": "Player 1: Enter your secret 4-digit number (no repeating digits).",
-    "setup_phase": True  # True during number selection, False during guessing
+    "setup_phase": True,
+    "timer": 30  # Timer for each turn (in seconds)
 }
 
 def evaluate_guess(secret, guess):
@@ -48,17 +49,18 @@ GAME_PAGE = """
     <style>
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(45deg, #ff6f61, #de4d86, #ff6f61);
+            background: linear-gradient(45deg, #00c4cc, #7fffd4, #00c4cc);
             background-size: 400%;
             animation: gradient 15s ease infinite;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
             margin: 0;
             color: #fff;
             position: relative;
-            overflow: hidden;
+            overflow-x: hidden;
+        }
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
         body::before {
             content: '';
@@ -72,11 +74,6 @@ GAME_PAGE = """
             z-index: -1;
             animation: parallax 50s linear infinite;
         }
-        @keyframes gradient {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
         @keyframes parallax {
             0% { background-position: 0 0; }
             100% { background-position: 1000px 1000px; }
@@ -89,7 +86,9 @@ GAME_PAGE = """
             text-align: center;
             width: 90%;
             max-width: 600px;
-            animation: fadeIn 1s ease-in-out;
+            margin: 20px auto;
+            animation: fadeIn 1.5s ease-in-out;
+            overflow-y: auto;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
@@ -99,14 +98,14 @@ GAME_PAGE = """
             font-family: 'Lobster', cursive;
             font-size: 3em;
             margin-bottom: 10px;
-            background: linear-gradient(45deg, #ff6f61, #de4d86);
+            background: linear-gradient(45deg, #00c4cc, #7fffd4);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             animation: glow 3s ease-in-out infinite;
         }
         @keyframes glow {
-            0%, 100% { text-shadow: 0 0 10px #ff6f61, 0 0 20px #de4d86; }
-            50% { text-shadow: 0 0 20px #ff6f61, 0 0 30px #de4d86; }
+            0%, 100% { text-shadow: 0 0 10px #00c4cc, 0 0 20px #7fffd4; }
+            50% { text-shadow: 0 0 20px #00c4cc, 0 0 30px #7fffd4; }
         }
         p {
             font-size: 1.2em;
@@ -117,31 +116,31 @@ GAME_PAGE = """
             font-size: 1.1em;
             width: 100%;
             margin: 15px 0;
-            border: 2px solid #de4d86;
+            border: 2px solid #7fffd4;
             border-radius: 8px;
             outline: none;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            transition: border-color 0.5s, box-shadow 0.5s;
         }
         input[type="text"]:focus {
-            border-color: #ff6f61;
-            box-shadow: 0 0 10px rgba(255, 111, 97, 0.5);
+            border-color: #00c4cc;
+            box-shadow: 0 0 10px rgba(0, 196, 204, 0.5);
         }
         button {
             padding: 12px 25px;
-            background: linear-gradient(45deg, #ff6f61, #de4d86);
+            background: linear-gradient(45deg, #00c4cc, #7fffd4);
             color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
             font-size: 1.1em;
-            transition: transform 0.3s, box-shadow 0.3s;
+            transition: transform 0.5s, box-shadow 0.5s;
         }
         button:hover {
             transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(255, 111, 97, 0.5);
+            box-shadow: 0 0 15px rgba(0, 196, 204, 0.5);
         }
         button:active {
-            animation: bounce 0.3s;
+            animation: bounce 0.5s;
         }
         @keyframes bounce {
             0% { transform: scale(1); }
@@ -152,8 +151,8 @@ GAME_PAGE = """
             margin: 20px 0;
             font-weight: 600;
             font-size: 1.3em;
-            color: #ff6f61;
-            animation: slideIn 0.5s ease-in-out;
+            color: #00c4cc;
+            animation: slideIn 1s ease-in-out;
         }
         @keyframes slideIn {
             from { opacity: 0; transform: translateX(-20px); }
@@ -162,7 +161,7 @@ GAME_PAGE = """
         .winner-message {
             font-size: 1.5em;
             color: #fff;
-            background: linear-gradient(45deg, #ff6f61, #de4d86);
+            background: linear-gradient(45deg, #00c4cc, #7fffd4);
             padding: 15px;
             border-radius: 10px;
             margin: 20px 0;
@@ -188,37 +187,74 @@ GAME_PAGE = """
             color: #333;
         }
         th {
-            background: linear-gradient(45deg, #ff6f61, #de4d86);
+            background: linear-gradient(45deg, #00c4cc, #7fffd4);
             color: white;
         }
         tr {
-            animation: fadeInRow 0.5s ease-in-out;
+            animation: zoomIn 0.8s ease-in-out;
         }
-        @keyframes fadeInRow {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
         }
         tr:hover {
-            background-color: rgba(255, 111, 97, 0.1);
-            transition: background-color 0.3s;
+            background-color: rgba(0, 196, 204, 0.1);
+            transition: background-color 0.5s;
         }
         .player-turn {
             font-size: 1.2em;
-            color: #de4d86;
+            color: #7fffd4;
             margin: 10px 0;
-            animation: slideIn 0.5s ease-in-out;
+            animation: slideIn 1s ease-in-out;
         }
         .restart {
-            background: linear-gradient(45deg, #007bff, #0056b3);
+            background: linear-gradient(45deg, #ff4500, #ff8c00);
+            margin: 10px;
         }
         .restart:hover {
-            box-shadow: 0 0 15px rgba(0, 123, 255, 0.5);
+            box-shadow: 0 0 15px rgba(255, 69, 0, 0.5);
+        }
+        .timer {
+            font-size: 1.2em;
+            color: #333;
+            margin: 10px 0;
+        }
+        .timer.warning {
+            color: #ff4500;
+            animation: shake 0.5s infinite;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        .audio-control {
+            margin: 10px 0;
+        }
+        .audio-control button {
+            background: linear-gradient(45deg, #ff4500, #ff8c00);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Mastermind - Two Players</h1>
+        <form method="POST" action="/restart" style="display: inline;">
+            <button type="submit" class="restart">Restart Game</button>
+        </form>
+        <div class="audio-control">
+            <button onclick="toggleAudio()">Toggle Music</button>
+        </div>
+        <audio id="backgroundMusic" loop>
+            <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+        <audio id="winSound">
+            <source src="https://www.myinstants.com/media/sounds/applause.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
         {% if setup_phase %}
         <p>{{ message }}</p>
         <form method="POST" action="/set_secret">
@@ -228,6 +264,7 @@ GAME_PAGE = """
         {% else %}
         <p class="player-turn">Player {{ current_player }}'s Turn</p>
         <p>Guess your opponent's 4-digit number!</p>
+        <p class="timer" id="timer">Time Left: {{ timer }}s</p>
         <p class="message">{{ message }}</p>
         {% if game_over %}
         <p class="winner-message">{{ winner }} Wins!</p>
@@ -237,6 +274,7 @@ GAME_PAGE = """
                 spread: 70,
                 origin: { y: 0.6 }
             });
+            document.getElementById('winSound').play();
         </script>
         {% endif %}
         <h2>Player 1's Guesses</h2>
@@ -274,7 +312,7 @@ GAME_PAGE = """
         </table>
         {% endif %}
         {% if not game_over %}
-        <form method="POST" action="/guess">
+        <form method="POST" action="/guess" id="guessForm">
             <input type="text" name="guess" maxlength="4" placeholder="Enter a 4-digit number" required>
             <button type="submit">Submit Guess</button>
         </form>
@@ -285,6 +323,82 @@ GAME_PAGE = """
         {% endif %}
         {% endif %}
     </div>
+    <script>
+        let timer = {{ timer }};
+        let timerInterval;
+        const timerElement = document.getElementById('timer');
+
+        function startTimer() {
+            timer = {{ timer }};
+            timerElement.textContent = `Time Left: ${timer}s`;
+            timerElement.classList.remove('warning');
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timer--;
+                timerElement.textContent = `Time Left: ${timer}s`;
+                if (timer <= 5) {
+                    timerElement.classList.add('warning');
+                }
+                if (timer <= 0) {
+                    clearInterval(timerInterval);
+                    alert("Time's up! Switching to the other player.");
+                    document.getElementById('guessForm').submit();
+                }
+            }, 1000);
+        }
+
+        function toggleAudio() {
+            const audio = document.getElementById('backgroundMusic');
+            if (audio.paused) {
+                audio.play();
+            } else {
+                audio.pause();
+            }
+        }
+
+        {% if not setup_phase and not game_over %}
+        startTimer();
+        {% endif %}
+
+        document.getElementById('guessForm')?.addEventListener('submit', (e) => {
+            const guessInput = document.querySelector('input[name="guess"]');
+            const guess = guessInput.value;
+            const secret = {{ current_player }} === 1 ? "{{ player2_secret }}" : "{{ player1_secret }}";
+            const { correct_digits, correct_positions } = evaluate_guess(secret, guess);
+            if (correct_positions !== 4) {
+                guessInput.classList.add('shake');
+                setTimeout(() => {
+                    guessInput.classList.remove('shake');
+                }, 500);
+            }
+        });
+
+        function evaluate_guess(secret, guess) {
+            let correct_positions = 0;
+            let correct_digits = 0;
+            const secret_digits = secret.split('');
+            const guess_digits = guess.split('');
+
+            for (let i = 0; i < 4; i++) {
+                if (secret_digits[i] === guess_digits[i]) {
+                    correct_positions++;
+                }
+            }
+
+            const secret_copy = [...secret_digits];
+            const guess_copy = [...guess_digits];
+            for (let digit of new Set(guess_copy)) {
+                correct_digits += Math.min(secret_copy.filter(x => x === digit).length, guess_copy.filter(x => x === digit).length);
+            }
+
+            return { correct_digits, correct_positions };
+        }
+    </script>
+    <style>
+        .shake {
+            animation: shake 0.5s;
+        }
+    </style>
 </body>
 </html>
 """
@@ -299,14 +413,16 @@ def index():
                                  current_player=game_state["current_player"],
                                  game_over=game_state["game_over"],
                                  winner=game_state["winner"],
-                                 setup_phase=game_state["setup_phase"])
+                                 setup_phase=game_state["setup_phase"],
+                                 timer=game_state["timer"],
+                                 player1_secret=game_state["player1_secret"] or "",
+                                 player2_secret=game_state["player2_secret"] or "")
 
 @app.route('/set_secret', methods=['POST'])
 def set_secret():
     """Handle setting the secret numbers for both players."""
     secret = request.form.get('secret').strip()
 
-    # Validate the secret number
     if not secret.isdigit() or len(secret) != 4 or len(set(secret)) != 4:
         game_state["message"] = "Invalid number! Please enter a 4-digit number with no repeating digits."
         return redirect('/')
@@ -330,14 +446,11 @@ def guess():
 
     guess = request.form.get('guess').strip()
 
-    # Validate the guess
     if not guess.isdigit() or len(guess) != 4 or len(set(guess)) != 4:
         game_state["message"] = "Invalid guess! Please enter a 4-digit number with no repeating digits."
         return redirect('/')
 
-    # Determine which player's turn it is
     if game_state["current_player"] == 1:
-        # Player 1 guesses Player 2's number
         secret = game_state["player2_secret"]
         correct_digits, correct_positions = evaluate_guess(secret, guess)
         game_state["player1_guesses"].append((guess, correct_digits, correct_positions))
@@ -347,9 +460,8 @@ def guess():
             game_state["message"] = f"Player 1 guessed the number {secret}!"
         else:
             game_state["current_player"] = 2
-            game_state["message"] = "Player 2: Guess Player 1's number!"
+            game_state["message"] = "Player 2: Guess Player 1's number! Try a different number!"
     else:
-        # Player 2 guesses Player 1's number
         secret = game_state["player1_secret"]
         correct_digits, correct_positions = evaluate_guess(secret, guess)
         game_state["player2_guesses"].append((guess, correct_digits, correct_positions))
@@ -359,7 +471,7 @@ def guess():
             game_state["message"] = f"Player 2 guessed the number {secret}!"
         else:
             game_state["current_player"] = 1
-            game_state["message"] = "Player 1: Guess Player 2's number!"
+            game_state["message"] = "Player 1: Guess Player 2's number! Try a different number!"
 
     return redirect('/')
 
