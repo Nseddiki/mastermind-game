@@ -5,23 +5,22 @@ app = Flask(__name__)
 
 # Initialize game state
 game_state = {
-    "secret_number": None,  # The number to guess
-    "guesses": [],  # List of (guess, correct_digits, correct_positions)
+    "player1_secret": None,  # Player 1's secret number
+    "player2_secret": None,  # Player 2's secret number
+    "player1_guesses": [],  # Player 1's guesses
+    "player2_guesses": [],  # Player 2's guesses
+    "current_player": 1,  # 1 for Player 1, 2 for Player 2
     "game_over": False,
-    "message": "Welcome to Mastermind! Guess a 4-digit number (no repeating digits)."
+    "winner": None,
+    "message": "Player 1: Enter your secret 4-digit number (no repeating digits).",
+    "setup_phase": True  # True during number selection, False during guessing
 }
-
-def generate_secret_number():
-    """Generate a 4-digit number with no repeating digits."""
-    digits = random.sample(range(0, 10), 4)  # Select 4 unique digits
-    return ''.join(map(str, digits))
 
 def evaluate_guess(secret, guess):
     """Evaluate the guess and return (correct_digits, correct_positions)."""
-    correct_positions = 0  # Number of digits that are correct and in the correct position
-    correct_digits = 0  # Number of digits that are correct (any position)
+    correct_positions = 0
+    correct_digits = 0
 
-    # Convert to lists for easier comparison
     secret_digits = list(secret)
     guess_digits = list(guess)
 
@@ -31,21 +30,17 @@ def evaluate_guess(secret, guess):
             correct_positions += 1
 
     # Step 2: Check for correct digits (any position)
-    # Create copies to avoid counting digits that are already matched in correct positions
     secret_copy = secret_digits.copy()
     guess_copy = guess_digits.copy()
 
-    # Remove digits that are in correct positions to avoid double counting
     for i in range(4):
         if secret_copy[i] == guess_copy[i]:
             secret_copy[i] = None
             guess_copy[i] = None
 
-    # Count remaining correct digits (in wrong positions)
     for i in range(4):
         if guess_copy[i] is not None and guess_copy[i] in secret_copy:
             correct_digits += 1
-            # Remove the matched digit from secret_copy to avoid double counting
             secret_copy[secret_copy.index(guess_copy[i])] = None
 
     return correct_digits, correct_positions
@@ -57,74 +52,109 @@ GAME_PAGE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mastermind</title>
+    <title>Mastermind - Two Players</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #ff6f61, #de4d86);
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             margin: 0;
+            color: #fff;
         }
         .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
             text-align: center;
             width: 90%;
-            max-width: 500px;
+            max-width: 600px;
         }
         h1 {
-            color: #333;
+            color: #ff6f61;
+            font-size: 2.5em;
+            margin-bottom: 10px;
         }
         p {
-            font-size: 16px;
-            color: #555;
+            font-size: 1.2em;
+            color: #333;
         }
         input[type="text"] {
-            padding: 10px;
-            font-size: 16px;
+            padding: 12px;
+            font-size: 1.1em;
             width: 100%;
-            margin: 10px 0;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            margin: 15px 0;
+            border: 2px solid #de4d86;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus {
+            border-color: #ff6f61;
         }
         button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
+            padding: 12px 25px;
+            background-color: #ff6f61;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 1.1em;
+            transition: background-color 0.3s, transform 0.1s;
         }
         button:hover {
-            background-color: #45a049;
+            background-color: #de4d86;
+            transform: scale(1.05);
         }
         .message {
-            margin: 15px 0;
-            font-weight: bold;
-            color: #d9534f;
+            margin: 20px 0;
+            font-weight: 600;
+            font-size: 1.3em;
+            color: #ff6f61;
+        }
+        .winner-message {
+            font-size: 1.5em;
+            color: #fff;
+            background: linear-gradient(45deg, #ff6f61, #de4d86);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
         table {
             width: 100%;
             border-collapse: collapse;
             margin: 20px 0;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: center;
+            color: #333;
         }
         th {
-            background-color: #f2f2f2;
+            background-color: #ff6f61;
+            color: white;
+        }
+        .player-turn {
+            font-size: 1.2em;
+            color: #de4d86;
+            margin: 10px 0;
         }
         .restart {
             background-color: #007bff;
-            margin-top: 10px;
         }
         .restart:hover {
             background-color: #0056b3;
@@ -133,17 +163,46 @@ GAME_PAGE = """
 </head>
 <body>
     <div class="container">
-        <h1>Mastermind</h1>
-        <p>Guess a 4-digit number (no repeating digits)!</p>
+        <h1>Mastermind - Two Players</h1>
+        {% if setup_phase %}
+        <p>{{ message }}</p>
+        <form method="POST" action="/set_secret">
+            <input type="text" name="secret" maxlength="4" placeholder="Enter a 4-digit number" required>
+            <button type="submit">Submit Secret Number</button>
+        </form>
+        {% else %}
+        <p class="player-turn">Player {{ current_player }}'s Turn</p>
+        <p>Guess your opponent's 4-digit number!</p>
         <p class="message">{{ message }}</p>
-        {% if guesses %}
+        {% if game_over %}
+        <p class="winner-message">{{ winner }} Wins!</p>
+        {% endif %}
+        <h2>Player 1's Guesses</h2>
+        {% if player1_guesses %}
         <table>
             <tr>
                 <th>Guess</th>
                 <th>Correct Digits</th>
                 <th>Correct Positions</th>
             </tr>
-            {% for guess, correct_digits, correct_positions in guesses %}
+            {% for guess, correct_digits, correct_positions in player1_guesses %}
+            <tr>
+                <td>{{ guess }}</td>
+                <td>{{ correct_digits }}</td>
+                <td>{{ correct_positions }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        <h2>Player 2's Guesses</h2>
+        {% if player2_guesses %}
+        <table>
+            <tr>
+                <th>Guess</th>
+                <th>Correct Digits</th>
+                <th>Correct Positions</th>
+            </tr>
+            {% for guess, correct_digits, correct_positions in player2_guesses %}
             <tr>
                 <td>{{ guess }}</td>
                 <td>{{ correct_digits }}</td>
@@ -162,6 +221,7 @@ GAME_PAGE = """
             <button type="submit" class="restart">Play Again</button>
         </form>
         {% endif %}
+        {% endif %}
     </div>
 </body>
 </html>
@@ -170,21 +230,40 @@ GAME_PAGE = """
 @app.route('/', methods=['GET'])
 def index():
     """Display the game page."""
-    # Start a new game if no secret number is set
-    if game_state["secret_number"] is None:
-        game_state["secret_number"] = generate_secret_number()
-        game_state["guesses"] = []
-        game_state["game_over"] = False
-        game_state["message"] = "Welcome to Mastermind! Guess a 4-digit number (no repeating digits)."
     return render_template_string(GAME_PAGE, 
                                  message=game_state["message"], 
-                                 guesses=game_state["guesses"], 
-                                 game_over=game_state["game_over"])
+                                 player1_guesses=game_state["player1_guesses"],
+                                 player2_guesses=game_state["player2_guesses"],
+                                 current_player=game_state["current_player"],
+                                 game_over=game_state["game_over"],
+                                 winner=game_state["winner"],
+                                 setup_phase=game_state["setup_phase"])
+
+@app.route('/set_secret', methods=['POST'])
+def set_secret():
+    """Handle setting the secret numbers for both players."""
+    secret = request.form.get('secret').strip()
+
+    # Validate the secret number
+    if not secret.isdigit() or len(secret) != 4 or len(set(secret)) != 4:
+        game_state["message"] = "Invalid number! Please enter a 4-digit number with no repeating digits."
+        return redirect('/')
+
+    if game_state["player1_secret"] is None:
+        game_state["player1_secret"] = secret
+        game_state["message"] = "Player 2: Enter your secret 4-digit number (no repeating digits)."
+        return redirect('/')
+    else:
+        game_state["player2_secret"] = secret
+        game_state["setup_phase"] = False
+        game_state["message"] = "Player 1: Guess Player 2's number!"
+        game_state["current_player"] = 1
+        return redirect('/')
 
 @app.route('/guess', methods=['POST'])
 def guess():
     """Handle the player's guess."""
-    if game_state["game_over"]:
+    if game_state["game_over"] or game_state["setup_phase"]:
         return redirect('/')
 
     guess = request.form.get('guess').strip()
@@ -192,34 +271,48 @@ def guess():
     # Validate the guess
     if not guess.isdigit() or len(guess) != 4 or len(set(guess)) != 4:
         game_state["message"] = "Invalid guess! Please enter a 4-digit number with no repeating digits."
-        return render_template_string(GAME_PAGE, 
-                                     message=game_state["message"], 
-                                     guesses=game_state["guesses"], 
-                                     game_over=game_state["game_over"])
+        return redirect('/')
 
-    # Evaluate the guess
-    correct_digits, correct_positions = evaluate_guess(game_state["secret_number"], guess)
-    game_state["guesses"].append((guess, correct_digits, correct_positions))
-
-    # Check if the player won
-    if correct_positions == 4:
-        game_state["message"] = f"Congratulations! You guessed the number {game_state['secret_number']} in {len(game_state['guesses'])} attempts!"
-        game_state["game_over"] = True
+    # Determine which player's turn it is
+    if game_state["current_player"] == 1:
+        # Player 1 guesses Player 2's number
+        secret = game_state["player2_secret"]
+        correct_digits, correct_positions = evaluate_guess(secret, guess)
+        game_state["player1_guesses"].append((guess, correct_digits, correct_positions))
+        if correct_positions == 4:
+            game_state["game_over"] = True
+            game_state["winner"] = "Player 1"
+            game_state["message"] = f"Player 1 guessed the number {secret}!"
+        else:
+            game_state["current_player"] = 2
+            game_state["message"] = "Player 2: Guess Player 1's number!"
     else:
-        game_state["message"] = "Keep guessing! Use the hints to narrow it down."
+        # Player 2 guesses Player 1's number
+        secret = game_state["player1_secret"]
+        correct_digits, correct_positions = evaluate_guess(secret, guess)
+        game_state["player2_guesses"].append((guess, correct_digits, correct_positions))
+        if correct_positions == 4:
+            game_state["game_over"] = True
+            game_state["winner"] = "Player 2"
+            game_state["message"] = f"Player 2 guessed the number {secret}!"
+        else:
+            game_state["current_player"] = 1
+            game_state["message"] = "Player 1: Guess Player 2's number!"
 
-    return render_template_string(GAME_PAGE, 
-                                 message=game_state["message"], 
-                                 guesses=game_state["guesses"], 
-                                 game_over=game_state["game_over"])
+    return redirect('/')
 
 @app.route('/restart', methods=['POST'])
 def restart():
     """Restart the game."""
-    game_state["secret_number"] = generate_secret_number()
-    game_state["guesses"] = []
+    game_state["player1_secret"] = None
+    game_state["player2_secret"] = None
+    game_state["player1_guesses"] = []
+    game_state["player2_guesses"] = []
+    game_state["current_player"] = 1
     game_state["game_over"] = False
-    game_state["message"] = "New game started! Guess a 4-digit number (no repeating digits)."
+    game_state["winner"] = None
+    game_state["message"] = "Player 1: Enter your secret 4-digit number (no repeating digits)."
+    game_state["setup_phase"] = True
     return redirect('/')
 
 if __name__ == "__main__":
