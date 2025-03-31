@@ -18,20 +18,16 @@ game_state = {
 
 def evaluate_guess(secret, guess):
     """Evaluate the guess and return (correct_digits, correct_positions)."""
-    correct_positions = 0  # Number of digits that are correct and in the correct position
-    correct_digits = 0  # Number of digits that are correct (any position)
+    correct_positions = 0
+    correct_digits = 0
 
-    # Convert to lists for easier comparison
     secret_digits = list(secret)
     guess_digits = list(guess)
 
-    # Step 1: Check for correct digits in correct positions
     for i in range(4):
         if secret_digits[i] == guess_digits[i]:
             correct_positions += 1
 
-    # Step 2: Check for correct digits (any position)
-    # Count total matching digits, including those in correct positions
     secret_copy = secret_digits.copy()
     guess_copy = guess_digits.copy()
     for digit in set(guess_copy):
@@ -47,31 +43,70 @@ GAME_PAGE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mastermind - Two Players</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Lobster&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #ff6f61, #de4d86);
+            background: linear-gradient(45deg, #ff6f61, #de4d86, #ff6f61);
+            background-size: 400%;
+            animation: gradient 15s ease infinite;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             margin: 0;
             color: #fff;
+            position: relative;
+            overflow: hidden;
+        }
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://www.transparenttextures.com/patterns/stardust.png') repeat;
+            opacity: 0.2;
+            z-index: -1;
+            animation: parallax 50s linear infinite;
+        }
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes parallax {
+            0% { background-position: 0 0; }
+            100% { background-position: 1000px 1000px; }
         }
         .container {
             background-color: rgba(255, 255, 255, 0.95);
             padding: 30px;
             border-radius: 15px;
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
             text-align: center;
             width: 90%;
             max-width: 600px;
+            animation: fadeIn 1s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         h1 {
-            color: #ff6f61;
-            font-size: 2.5em;
+            font-family: 'Lobster', cursive;
+            font-size: 3em;
             margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff6f61, #de4d86);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: glow 3s ease-in-out infinite;
+        }
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 10px #ff6f61, 0 0 20px #de4d86; }
+            50% { text-shadow: 0 0 20px #ff6f61, 0 0 30px #de4d86; }
         }
         p {
             font-size: 1.2em;
@@ -85,30 +120,44 @@ GAME_PAGE = """
             border: 2px solid #de4d86;
             border-radius: 8px;
             outline: none;
-            transition: border-color 0.3s;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
         input[type="text"]:focus {
             border-color: #ff6f61;
+            box-shadow: 0 0 10px rgba(255, 111, 97, 0.5);
         }
         button {
             padding: 12px 25px;
-            background-color: #ff6f61;
+            background: linear-gradient(45deg, #ff6f61, #de4d86);
             color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
             font-size: 1.1em;
-            transition: background-color 0.3s, transform 0.1s;
+            transition: transform 0.3s, box-shadow 0.3s;
         }
         button:hover {
-            background-color: #de4d86;
             transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 111, 97, 0.5);
+        }
+        button:active {
+            animation: bounce 0.3s;
+        }
+        @keyframes bounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.95); }
+            100% { transform: scale(1); }
         }
         .message {
             margin: 20px 0;
             font-weight: 600;
             font-size: 1.3em;
             color: #ff6f61;
+            animation: slideIn 0.5s ease-in-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
         }
         .winner-message {
             font-size: 1.5em;
@@ -139,19 +188,31 @@ GAME_PAGE = """
             color: #333;
         }
         th {
-            background-color: #ff6f61;
+            background: linear-gradient(45deg, #ff6f61, #de4d86);
             color: white;
+        }
+        tr {
+            animation: fadeInRow 0.5s ease-in-out;
+        }
+        @keyframes fadeInRow {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        tr:hover {
+            background-color: rgba(255, 111, 97, 0.1);
+            transition: background-color 0.3s;
         }
         .player-turn {
             font-size: 1.2em;
             color: #de4d86;
             margin: 10px 0;
+            animation: slideIn 0.5s ease-in-out;
         }
         .restart {
-            background-color: #007bff;
+            background: linear-gradient(45deg, #007bff, #0056b3);
         }
         .restart:hover {
-            background-color: #0056b3;
+            box-shadow: 0 0 15px rgba(0, 123, 255, 0.5);
         }
     </style>
 </head>
@@ -170,6 +231,13 @@ GAME_PAGE = """
         <p class="message">{{ message }}</p>
         {% if game_over %}
         <p class="winner-message">{{ winner }} Wins!</p>
+        <script>
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        </script>
         {% endif %}
         <h2>Player 1's Guesses</h2>
         {% if player1_guesses %}
